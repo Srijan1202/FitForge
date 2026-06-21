@@ -1,0 +1,28 @@
+export const darkTheme = {
+  bgBase: '#0A0E0C',
+  bgSurface: '#121714',
+  bgSurfaceRaised: '#1A211C',
+  accentPrimary: '#39FF6A',
+  accentGlow: 'rgba(57, 255, 106, 0.35)',
+  accentDim: '#1F7A3D',
+  textPrimary: '#E8F5EC',
+  textSecondary: '#7C9485',
+  textDisabled: '#3E4A42',
+  borderHairline: '#22291F',
+  stateError: '#FF5C5C',
+  stateWarning: '#FFB84D',
+
+  // Tamagui required mappings
+  background: '#0A0E0C',
+  backgroundHover: '#1A211C',
+  backgroundPress: '#121714',
+  backgroundFocus: '#1A211C',
+  color: '#E8F5EC',
+  colorHover: '#E8F5EC',
+  colorPress: '#7C9485',
+  colorFocus: '#E8F5EC',
+  borderColor: '#22291F',
+  borderColorHover: '#3E4A42',
+  borderColorFocus: '#39FF6A',
+  borderColorPress: '#22291F',
+};

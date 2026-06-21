@@ -1,0 +1,60 @@
+import { createTokens } from '@tamagui/core';
+
+export const tokens = createTokens({
+  color: {
+    // We will define our specific semantic colors in the themes directly,
+    // but tamagui requires base color tokens. We'll add some generic ones here.
+    transparent: 'transparent',
+    black: '#000000',
+    white: '#FFFFFF',
+    greenPrimaryDark: '#39FF6A',
+    greenPrimaryLight: '#1F9D4A',
+  },
+  space: {
+    0: 0,
+    1: 4,
+    2: 8,
+    3: 12,
+    4: 16,
+    5: 20,
+    6: 24,
+    7: 28,
+    8: 32,
+    9: 40,
+    10: 48,
+    true: 8,
+  },
+  size: {
+    0: 0,
+    1: 4,
+    2: 8,
+    3: 12,
+    4: 16,
+    5: 20,
+    6: 24,
+    7: 28,
+    8: 32,
+    9: 40,
+    10: 48,
+    true: 16,
+  },
+  radius: {
+    0: 0,
+    1: 4,
+    2: 8,
+    3: 12, // Soft card radius
+    4: 16,
+    5: 20,
+    6: 24,
+    round: 9999,
+    true: 12,
+  },
+  zIndex: {
+    0: 0,
+    1: 100,
+    2: 200,
+    3: 300,
+    4: 400,
+    5: 500,
+  },
+});
