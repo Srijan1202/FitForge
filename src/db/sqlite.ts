@@ -98,6 +98,19 @@ export const initDb = async () => {
         FOREIGN KEY(session_id) REFERENCES workout_sessions(id),
         FOREIGN KEY(exercise_id) REFERENCES exercise_library(id)
       );
+
+      CREATE TABLE IF NOT EXISTS nutrition_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        log_date TEXT,
+        description TEXT,
+        calories INTEGER,
+        protein_g REAL,
+        carbs_g REAL,
+        fats_g REAL,
+        source TEXT,
+        sync_status TEXT DEFAULT 'pending'
+      );
     `);
   } catch (error) {
     console.warn('SQLite failed to initialize, using mock fallback:', error);
