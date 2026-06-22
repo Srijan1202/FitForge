@@ -4,7 +4,7 @@ import { Card, CardTitle, CardSubtitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { useUserStore } from '../../store/useUserStore';
 import { useNutritionStore, NutritionLog } from '../../store/useNutritionStore';
-import { Sparkles, Plus, Trash2, Calendar, ShieldAlert, Check } from 'lucide-react-native';
+import { Sparkles, Plus, Trash2, Calendar, ShieldAlert, Check, Flame, Compass } from 'lucide-react-native';
 import { TouchableOpacity, Alert } from 'react-native';
 
 const HUDInput = styled(Input, {
@@ -82,6 +82,23 @@ const LOCAL_FOOD_CATALOG: Record<string, { name: string; calories: number; prote
   apple: { name: 'Apple', calories: 95, protein: 0.5, carbs: 25.0, fats: 0.3 },
   apples: { name: 'Apple', calories: 95, protein: 0.5, carbs: 25.0, fats: 0.3 },
   shake: { name: 'Whey Protein (1 scoop)', calories: 120, protein: 24.0, carbs: 3.0, fats: 1.5 },
+  // Indian & Hostel Food Catalog
+  dosa: { name: 'Dosa', calories: 120, protein: 3.0, carbs: 24.0, fats: 2.0 },
+  chapathi: { name: 'Chapathi', calories: 90, protein: 3.0, carbs: 18.0, fats: 1.0 },
+  roti: { name: 'Roti', calories: 90, protein: 3.0, carbs: 18.0, fats: 1.0 },
+  paneer: { name: 'Paneer Curry', calories: 250, protein: 12.0, carbs: 6.0, fats: 20.0 },
+  biryani: { name: 'Biryani', calories: 350, protein: 15.0, carbs: 50.0, fats: 10.0 },
+  dal: { name: 'Dal Curry', calories: 150, protein: 8.0, carbs: 22.0, fats: 4.0 },
+  poori: { name: 'Poori', calories: 100, protein: 2.0, carbs: 15.0, fats: 4.5 },
+  vada: { name: 'Vada', calories: 120, protein: 3.0, carbs: 14.0, fats: 6.0 },
+  pongal: { name: 'Pongal', calories: 250, protein: 6.0, carbs: 40.0, fats: 8.0 },
+  kichadi: { name: 'Kichadi', calories: 220, protein: 5.0, carbs: 38.0, fats: 6.0 },
+  curd: { name: 'Curd', calories: 60, protein: 3.2, carbs: 4.0, fats: 3.0 },
+  sambar: { name: 'Sambar', calories: 80, protein: 2.5, carbs: 12.0, fats: 2.0 },
+  burger: { name: 'Burger', calories: 280, protein: 8.0, carbs: 40.0, fats: 10.0 },
+  puff: { name: 'Puff', calories: 200, protein: 3.0, carbs: 24.0, fats: 10.0 },
+  donut: { name: 'Donut', calories: 250, protein: 3.0, carbs: 30.0, fats: 13.0 },
+  idly: { name: 'Idly', calories: 60, protein: 1.5, carbs: 12.0, fats: 0.2 },
 };
 
 const parseFoodInput = (text: string) => {
@@ -123,16 +140,73 @@ const parseFoodInput = (text: string) => {
         break;
       }
     }
+
+    if (!matched) {
+      let nameWithoutQty = trimmed;
+      if (numMatch) {
+        nameWithoutQty = trimmed.substring(numMatch[0].length).trim();
+      } else if (trimmed.startsWith('a ')) {
+        nameWithoutQty = trimmed.substring(2).trim();
+      } else if (trimmed.startsWith('an ')) {
+        nameWithoutQty = trimmed.substring(3).trim();
+      } else if (trimmed.startsWith('one ')) {
+        nameWithoutQty = trimmed.substring(4).trim();
+      } else if (trimmed.startsWith('two ')) {
+        nameWithoutQty = trimmed.substring(4).trim();
+      } else if (trimmed.startsWith('three ')) {
+        nameWithoutQty = trimmed.substring(6).trim();
+      }
+      
+      const displayName = nameWithoutQty.charAt(0).toUpperCase() + nameWithoutQty.slice(1);
+      totalCalories += 150 * qty;
+      totalProtein += 5.0 * qty;
+      totalCarbs += 20.0 * qty;
+      totalFats += 5.0 * qty;
+      matchedNames.push(`${qty}x Generic ${displayName}`);
+    }
   });
 
   return {
-    success: matchedNames.length > 0,
+    success: true,
     description: matchedNames.join(', ') || text,
     calories: Math.round(totalCalories),
     protein: parseFloat(totalProtein.toFixed(1)),
     carbs: parseFloat(totalCarbs.toFixed(1)),
     fats: parseFloat(totalFats.toFixed(1)),
   };
+};
+
+const HIGH_PROTEIN_KEYWORDS = [
+  { words: ['chicken', 'non-veg', 'mutton', 'egg', 'fish'], protein: 25, label: 'High Protein (Animal Source)' },
+  { words: ['paneer', 'tofu', 'soya', 'soy'], protein: 18, label: 'High Protein (Veg Source)' },
+  { words: ['dal', 'chana', 'rajma', 'sprouts', 'lentil', 'sambhar', 'sambar', 'peas'], protein: 8, label: 'Moderate Protein (Legumes)' },
+  { words: ['milk', 'curd', 'lassi', 'kheer'], protein: 6, label: 'Dairy Protein Source' }
+];
+
+const analyzeProteinInMenu = (menu: any[]) => {
+  const proteinDishes: { mealLabel: string; dish: string; estProtein: number; type: string }[] = [];
+  
+  menu.forEach((meal: any) => {
+    const mealLabel = meal.type === 1 ? 'BREAKFAST' : meal.type === 2 ? 'LUNCH' : meal.type === 3 ? 'SNACKS' : 'DINNER';
+    const dishes = meal.menu.split(',').map((d: string) => d.trim()).filter((d: string) => d.length > 0);
+    
+    dishes.forEach((dish: string) => {
+      const lowerDish = dish.toLowerCase();
+      for (const group of HIGH_PROTEIN_KEYWORDS) {
+        if (group.words.some(word => lowerDish.includes(word))) {
+          proteinDishes.push({
+            mealLabel,
+            dish,
+            estProtein: group.protein,
+            type: group.label
+          });
+          break;
+        }
+      }
+    });
+  });
+  
+  return proteinDishes;
 };
 
 export const NutritionScreen = () => {
@@ -173,6 +247,64 @@ export const NutritionScreen = () => {
   const [fat, setFat] = useState('');
 
   const [error, setError] = useState<string | null>(null);
+
+  const defaultHostel = useUserStore((state) => state.hostel) || '1';
+  const defaultMess = useUserStore((state) => state.mess) || '1';
+  const fitnessGoal = useUserStore((state) => state.fitness_goal) || 'general';
+
+  // VIT Mess Menu State
+  const [selectedHostel, setSelectedHostel] = useState(defaultHostel);
+  const [selectedMess, setSelectedMess] = useState(defaultMess);
+  const [vitMenuData, setVitMenuData] = useState<any[]>([]);
+  const [vitMenuLoading, setVitMenuLoading] = useState(false);
+  const [vitMenuError, setVitMenuError] = useState<string | null>(null);
+
+  // Sync state with store default values if they change (e.g. edited via Profile Editor Modal)
+  useEffect(() => {
+    setSelectedHostel(defaultHostel);
+    setSelectedMess(defaultMess);
+  }, [defaultHostel, defaultMess]);
+
+  const fetchVitMenu = async (h = selectedHostel, m = selectedMess) => {
+    setVitMenuLoading(true);
+    setVitMenuError(null);
+    try {
+      const response = await fetch(`https://messit.vinnovateit.com/menu-data/hostel-${h}-mess-${m}.json`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const json = await response.json();
+      if (json && json.menu) {
+        setVitMenuData(json.menu);
+      } else {
+        setVitMenuData([]);
+        throw new Error('Menu list not found in JSON');
+      }
+    } catch (err: any) {
+      console.error('[NutritionScreen] VIT Mess Menu fetch error:', err);
+      setVitMenuError(err.message || 'Network fault fetching mess menu.');
+    } finally {
+      setVitMenuLoading(false);
+    }
+  };
+
+  const getTodayMessMenu = () => {
+    if (!vitMenuData || vitMenuData.length === 0) return null;
+    const dayStr = selectedDate.split('-')[2];
+    if (!dayStr) return null;
+    const match = vitMenuData.find(item => {
+      const itemDay = item.date.split('-')[2];
+      return itemDay === dayStr;
+    });
+    return match ? match.menu : null;
+  };
+
+  const todayMessMenu = getTodayMessMenu();
+
+  // Load mess menu on selected hostel/mess change (including initial mount with profile defaults)
+  useEffect(() => {
+    fetchVitMenu(selectedHostel, selectedMess);
+  }, [selectedHostel, selectedMess]);
 
   // Load logs on date changes
   useEffect(() => {
@@ -274,6 +406,9 @@ export const NutritionScreen = () => {
       setError('Manual log commit failure: ' + err.toString());
     }
   };
+
+  const remainingProtein = Math.max(0, dailyProteinTarget - consumedProtein);
+  const proteinDishes = todayMessMenu ? analyzeProteinInMenu(todayMessMenu) : [];
 
   return (
     <View flex={1} bg="$background">
@@ -422,6 +557,264 @@ export const NutritionScreen = () => {
                 </Text>
               </XStack>
             )}
+          </YStack>
+        </Card>
+
+        {/* Card 3: VIT Mess Menu integration */}
+        <Card mb="$4">
+          <XStack ai="center" gap="$2" mb="$2">
+            <Calendar size={16} color={theme.accentPrimary.get() as string} />
+            <CardTitle>VIT MESS MENU DIRECTIVE</CardTitle>
+          </XStack>
+          <CardSubtitle mb="$3">Load daily hostel mess meals and tap to auto-fill logging parser.</CardSubtitle>
+
+          <YStack gap="$3">
+            <XStack gap="$3">
+              {/* Hostel Select */}
+              <YStack flex={1} gap="$1">
+                <Text color="$textSecondary" fontSize="$1" fontFamily="$body">HOSTEL</Text>
+                <XStack bg="$bgSurface" br="$2" p="$1" borderWidth={1} borderColor="$borderHairline">
+                  <TouchableOpacity onPress={() => setSelectedHostel('1')} style={{ flex: 1 }}>
+                    <View py="$2" ai="center" br="$1" bg={selectedHostel === '1' ? '$bgSurfaceRaised' : 'transparent'}>
+                      <Text fontFamily="$heading" fontSize="$1" color={selectedHostel === '1' ? '$accentPrimary' : '$textSecondary'}>HOSTEL 1</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setSelectedHostel('2')} style={{ flex: 1 }}>
+                    <View py="$2" ai="center" br="$1" bg={selectedHostel === '2' ? '$bgSurfaceRaised' : 'transparent'}>
+                      <Text fontFamily="$heading" fontSize="$1" color={selectedHostel === '2' ? '$accentPrimary' : '$textSecondary'}>HOSTEL 2</Text>
+                    </View>
+                  </TouchableOpacity>
+                </XStack>
+              </YStack>
+
+              {/* Mess Select */}
+              <YStack flex={1.5} gap="$1">
+                <Text color="$textSecondary" fontSize="$1" fontFamily="$body">MESS TYPE</Text>
+                <XStack bg="$bgSurface" br="$2" p="$1" borderWidth={1} borderColor="$borderHairline">
+                  <TouchableOpacity onPress={() => setSelectedMess('1')} style={{ flex: 1 }}>
+                    <View py="$2" ai="center" br="$1" bg={selectedMess === '1' ? '$bgSurfaceRaised' : 'transparent'}>
+                      <Text fontFamily="$heading" fontSize="$1" color={selectedMess === '1' ? '$accentPrimary' : '$textSecondary'}>MESS 1</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setSelectedMess('2')} style={{ flex: 1 }}>
+                    <View py="$2" ai="center" br="$1" bg={selectedMess === '2' ? '$bgSurfaceRaised' : 'transparent'}>
+                      <Text fontFamily="$heading" fontSize="$1" color={selectedMess === '2' ? '$accentPrimary' : '$textSecondary'}>MESS 2</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setSelectedMess('3')} style={{ flex: 1 }}>
+                    <View py="$2" ai="center" br="$1" bg={selectedMess === '3' ? '$bgSurfaceRaised' : 'transparent'}>
+                      <Text fontFamily="$heading" fontSize="$1" color={selectedMess === '3' ? '$accentPrimary' : '$textSecondary'}>MESS 3</Text>
+                    </View>
+                  </TouchableOpacity>
+                </XStack>
+              </YStack>
+            </XStack>
+
+            <Button 
+              title={vitMenuLoading ? 'CONNECTING TO MESSIT API...' : 'FETCH VIT MESS DIARY'} 
+              onPress={() => fetchVitMenu()}
+              disabled={vitMenuLoading}
+            />
+
+            {vitMenuError && (
+              <XStack bg="$bgSurface" borderColor="$stateError" borderWidth={1} br="$2" p="$2.5" ai="center" gap="$2">
+                <ShieldAlert size={14} color={theme.stateError.get() as string} />
+                <Text color="$stateError" fontFamily="$mono" fontSize="$1" flex={1}>
+                  VIT NET FAULT: {vitMenuError.toUpperCase()}
+                </Text>
+              </XStack>
+            )}
+
+            {/* Menu details rendering */}
+            {todayMessMenu ? (
+              <YStack gap="$3" mt="$2" p="$3" bg="$bgSurfaceRaised" br="$2" borderWidth={1} borderColor="$borderHairline">
+                <Text color="$accentPrimary" fontFamily="$mono" fontSize="$1" fontWeight="bold">
+                  DIETARY DIRECTIVE: DAY {selectedDate.split('-')[2]} FEED
+                </Text>
+                
+                {todayMessMenu.map((meal: any, idx: number) => {
+                  const mealLabel = meal.type === 1 ? 'BREAKFAST' : meal.type === 2 ? 'LUNCH' : meal.type === 3 ? 'SNACKS' : 'DINNER';
+                  const dishes = meal.menu.split(',').map((d: string) => d.trim()).filter((d: string) => d.length > 0);
+
+                  return (
+                    <YStack key={idx} gap="$1.5">
+                      <Text color="$textSecondary" fontSize="$1" fontFamily="$heading">{mealLabel}</Text>
+                      <XStack gap="$1.5" flexWrap="wrap">
+                        {dishes.map((dish: string, dishIdx: number) => (
+                          <TouchableOpacity 
+                            key={dishIdx} 
+                            onPress={() => {
+                              setAiText(dish);
+                              setIsManualMode(false);
+                              setError(null);
+                              Alert.alert('AUTO-FILL PROTOCOL', `"${dish.toUpperCase()}" loaded into parser. Tap Parse below.`);
+                            }}
+                          >
+                            <View 
+                              bg="$bgBase" 
+                              px="$2" py="$1.5" 
+                              br="$1" 
+                              borderWidth={1} 
+                              borderColor="$accentDim"
+                              pressStyle={{ borderColor: '$accentPrimary' }}
+                            >
+                              <Text color="$textPrimary" fontSize="$1" fontFamily="$body">
+                                {dish}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </XStack>
+                    </YStack>
+                  );
+                })}
+              </YStack>
+            ) : (
+              !vitMenuLoading && vitMenuData.length > 0 && (
+                <Text color="$textSecondary" fontSize="$1" fontFamily="$body" textAlign="center" py="$2">
+                  No mess data matching day {selectedDate.split('-')[2]} found.
+                </Text>
+              )
+            )}
+
+          </YStack>
+        </Card>
+
+        {/* AI PROTEIN OPTIMIZER */}
+        <Card mb="$4" borderColor="$accentPrimary" borderWidth={1}>
+          <XStack ai="center" gap="$2" mb="$2">
+            <Sparkles size={16} color={theme.accentPrimary.get() as string} />
+            <CardTitle>AI PROTEIN OPTIMIZER</CardTitle>
+          </XStack>
+          <CardSubtitle mb="$3">
+            Real-time scanner matching remaining protein goals with today's mess menu items.
+          </CardSubtitle>
+
+          <YStack gap="$3">
+            <XStack jc="space-between" ai="center" bg="$bgSurfaceRaised" p="$3" br="$2" borderWidth={1} borderColor="$borderHairline">
+              <YStack>
+                <Text color="$textSecondary" fontSize="$1" fontFamily="$body">REMAINING PROTEIN TARGET</Text>
+                <Text color={remainingProtein > 0 ? '$accentPrimary' : '$textPrimary'} fontSize="$4" fontFamily="$mono" fontWeight="bold">
+                  {remainingProtein.toFixed(1)}g
+                </Text>
+              </YStack>
+              <View py="$1" px="$2.5" br="$1" bg={remainingProtein === 0 ? '$accentDim' : '$bgBase'} borderWidth={1} borderColor={remainingProtein === 0 ? '$accentPrimary' : '$borderHairline'}>
+                <Text color={remainingProtein === 0 ? '$accentPrimary' : '$textSecondary'} fontSize="$1" fontFamily="$mono" fontWeight="bold">
+                  {remainingProtein === 0 ? 'TARGET MET' : 'INCOMPLETE'}
+                </Text>
+              </View>
+            </XStack>
+
+            {remainingProtein === 0 ? (
+              <XStack bg="$bgSurface" borderColor="$accentPrimary" borderWidth={1} br="$2" p="$3" ai="center" gap="$2.5">
+                <Check size={16} color={theme.accentPrimary.get() as string} />
+                <Text color="$accentPrimary" fontFamily="$mono" fontSize="$1" flex={1}>
+                  PROTEIN TARGET MET! DYNAMIC HYPERTROPHY RECOVERY ACTIVE. NO FURTHER PROTEIN INTAKE MANDATORY TODAY.
+                </Text>
+              </XStack>
+            ) : !todayMessMenu ? (
+              <XStack bg="$bgSurface" borderColor="$borderHairline" borderWidth={1} br="$2" p="$3" ai="center" gap="$2.5">
+                <Calendar size={16} color={theme.textSecondary.get() as string} />
+                <Text color="$textSecondary" fontFamily="$body" fontSize="$1" flex={1}>
+                  No active mess menu loaded. Please fetch the VIT Mess Menu above to evaluate protein options.
+                </Text>
+              </XStack>
+            ) : proteinDishes.length === 0 ? (
+              <XStack bg="$bgSurface" borderColor="$stateWarning" borderWidth={1} br="$2" p="$3" ai="center" gap="$2.5">
+                <ShieldAlert size={16} color={theme.stateWarning.get() as string} />
+                <Text color="$stateWarning" fontFamily="$mono" fontSize="$1" flex={1}>
+                  ALERT: NO HIGH-PROTEIN DISHES DETECTED IN TODAY'S MESS MENU. WE RECOMMEND ADDING 1 SCOOP WHEY (24g) OR 2-3 EGGS (12-18g) TO YOUR LOGS.
+                </Text>
+              </XStack>
+            ) : (
+              <YStack gap="$2">
+                <Text color="$textSecondary" fontSize="$1" fontFamily="$heading">DETECTED MESS PROTEIN SOURCES</Text>
+                {proteinDishes.map((item: any, idx: number) => (
+                  <XStack key={idx} jc="space-between" ai="center" bg="$bgBase" p="$2" br="$1" borderWidth={1} borderColor="$accentDim">
+                    <YStack flex={2}>
+                      <Text color="$textPrimary" fontSize="$2" fontFamily="$body" fontWeight="bold">{item.dish.toUpperCase()}</Text>
+                      <Text color="$textSecondary" fontSize="$1" fontFamily="$mono">{item.mealLabel} • {item.type}</Text>
+                    </YStack>
+                    <Text color="$accentPrimary" fontSize="$2" fontFamily="$mono" fontWeight="bold">+{item.estProtein}g P</Text>
+                  </XStack>
+                ))}
+                
+                <YStack mt="$2" p="$3" bg="$bgSurfaceRaised" br="$2" borderWidth={1} borderColor="$borderHairline" gap="$1">
+                  <Text color="$accentPrimary" fontSize="$1" fontFamily="$mono" fontWeight="bold">AI DIETARY INSTRUCTION DIRECTIVE</Text>
+                  <Text color="$textPrimary" fontSize="$1" fontFamily="$body" lineHeight={16}>
+                    To close your remaining {remainingProtein.toFixed(1)}g protein gap, prioritize eating: {proteinDishes.map((d: any) => `${d.dish} (${d.mealLabel})`).slice(0, 3).join(', ')}. Tapping the items in the VIT Menu card above will auto-fill your tracker!
+                  </Text>
+                </YStack>
+              </YStack>
+            )}
+          </YStack>
+        </Card>
+
+        {/* DIETARY RECOMMENDATIONS MATRIX */}
+        <Card mb="$4">
+          <XStack ai="center" gap="$2" mb="$2">
+            {(() => {
+              switch (fitnessGoal) {
+                case 'bulk': return <Flame size={16} color={theme.accentPrimary.get() as string} />;
+                case 'cut': return <Compass size={16} color={theme.accentPrimary.get() as string} />;
+                default: return <Sparkles size={16} color={theme.accentPrimary.get() as string} />;
+              }
+            })()}
+            <CardTitle>
+              {fitnessGoal === 'bulk' && 'HYPERTROPHY DIETARY STRATEGY (BULK)'}
+              {fitnessGoal === 'cut' && 'FAT LOSS DIETARY STRATEGY (CUT)'}
+              {fitnessGoal === 'maintain' && 'BODY RECOMPOSITION STRATEGY (MAINTAIN)'}
+              {fitnessGoal === 'general' && 'GENERAL HEALTH & FITNESS STRATEGY'}
+            </CardTitle>
+          </XStack>
+          <CardSubtitle mb="$3">
+            {fitnessGoal === 'bulk' && 'Targeting positive caloric surplus (+300 to +500 kcal) with high protein synthesis.'}
+            {fitnessGoal === 'cut' && 'Targeting energy deficit (-300 to -500 kcal) while preserving lean tissue.'}
+            {fitnessGoal === 'maintain' && 'Targeting metabolic equilibrium to trade fat for muscle tissue.'}
+            {fitnessGoal === 'general' && 'Targeting clean nutrition, energy stability, and general wellness.'}
+          </CardSubtitle>
+
+          <YStack gap="$2.5">
+            <YStack gap="$1.5">
+              <Text color="$accentPrimary" fontSize="$1" fontFamily="$mono" fontWeight="bold">OPTIMAL FOOD SOURCES</Text>
+              <Text color="$textPrimary" fontSize="$2" fontFamily="$body" lineHeight={16}>
+                {fitnessGoal === 'bulk' && 'Peanut butter oats, chicken breast with rice, paneer curry with chapatis, protein shakes.'}
+                {fitnessGoal === 'cut' && 'Egg white scramble, boiled chicken salad, protein shakes in water, low-fat paneer/tofu stir-fry.'}
+                {fitnessGoal === 'maintain' && 'Oatmeal with fruit, fish/chicken with mixed vegetables, multi-grain wraps, curd and honey.'}
+                {fitnessGoal === 'general' && 'Boiled eggs, brown rice with dal and mixed veg, fresh fruits with almonds, grilled paneer.'}
+              </Text>
+            </YStack>
+            
+            <YStack gap="$1.5" mt="$1">
+              <Text color="$textSecondary" fontSize="$1" fontFamily="$heading">STRATEGY CHECKLIST</Text>
+              {(() => {
+                const tips = fitnessGoal === 'bulk' ? [
+                  'Prioritize calorie-dense sources (nuts, peanut butter, whole grains).',
+                  'Target 2.0g of protein per kg of bodyweight daily.',
+                  'Maintain a carbohydrate-rich intake to fuel intense workout sessions.',
+                ] : fitnessGoal === 'cut' ? [
+                  'Focus on high-volume, low-calorie foods (leafy greens, fibrous vegetables).',
+                  'Keep protein high (2.2g per kg) to prevent muscle catabolism.',
+                  'Drink 3-4 liters of water to regulate satiety signals.',
+                ] : fitnessGoal === 'maintain' ? [
+                  'Maintain exact calorie balance matching your calculated TDEE.',
+                  'Distribute protein intake evenly across 4-5 meals.',
+                  'Adjust carbs up or down based on training volume intensity.',
+                ] : [
+                  'Consume a diverse range of whole foods (fruits, vegetables, lean proteins).',
+                  'Limit refined sugars and processed artificial food items.',
+                  'Listen to hunger cues and balance portion sizes naturally.',
+                ];
+                return tips.map((tip, idx) => (
+                  <XStack key={idx} gap="$2" ai="flex-start">
+                    <Text color="$accentPrimary" fontSize="$1" fontFamily="$mono">•</Text>
+                    <Text color="$textSecondary" fontSize="$1" fontFamily="$body" flex={1} lineHeight={14}>
+                      {tip}
+                    </Text>
+                  </XStack>
+                ));
+              })()}
+            </YStack>
           </YStack>
         </Card>
 

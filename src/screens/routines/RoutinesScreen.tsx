@@ -7,6 +7,7 @@ import { useWorkoutStore } from '../../store/useWorkoutStore';
 import { getDb } from '../../db/sqlite';
 import { useNavigation } from '@react-navigation/native';
 import { Sparkles, Calendar, Clipboard, Play, Dumbbell, User } from 'lucide-react-native';
+import { EXERCISE_LIBRARY_SEED } from '../../db/exerciseData';
 
 const HUDInput = styled(Input, {
   backgroundColor: '$bgSurface',
@@ -74,25 +75,16 @@ export const RoutinesScreen = () => {
       const routineCheck = await db.getFirstAsync('SELECT count(*) as cnt FROM routines') as { cnt: number };
       if (!routineCheck || routineCheck.cnt === 0) {
         console.log('[RoutinesScreen] Database routines table is empty. Seeding initial templates...');
-        await db.execAsync(`
-          INSERT OR IGNORE INTO exercise_library (id, name, target_muscle, equipment) VALUES
-          ('ex-bench-press', 'Barbell Bench Press', 'Chest', 'Barbell'),
-          ('ex-inc-db-press', 'Incline Dumbbell Press', 'Chest', 'Dumbbell'),
-          ('ex-cable-flyes', 'Cable Chest Flyes', 'Chest', 'Cables'),
-          ('ex-deadlift', 'Barbell Deadlift', 'Back', 'Barbell'),
-          ('ex-lat-pulldown', 'Lat Pulldown', 'Back', 'Cables'),
-          ('ex-bb-row', 'Bent Over Barbell Row', 'Back', 'Barbell'),
-          ('ex-ohp', 'Overhead Press', 'Shoulders', 'Barbell'),
-          ('ex-lat-raise', 'Dumbbell Lateral Raise', 'Shoulders', 'Dumbbell'),
-          ('ex-face-pull', 'Face Pull', 'Shoulders', 'Cables'),
-          ('ex-squat', 'Barbell Squat', 'Legs', 'Barbell'),
-          ('ex-rdl', 'Romanian Deadlift', 'Legs', 'Barbell'),
-          ('ex-calf-raise', 'Calf Raise', 'Legs', 'Bodyweight'),
-          ('ex-bb-curl', 'Barbell Bicep Curl', 'Arms', 'Barbell'),
-          ('ex-tri-pushdown', 'Tricep Pushdown', 'Arms', 'Cables'),
-          ('ex-hammer-curl', 'Hammer Curl', 'Arms', 'Dumbbell'),
-          ('ex-leg-curl', 'Leg Curl', 'Legs', 'Machine');
+        
+        // Seed exercise library
+        const placeholders = EXERCISE_LIBRARY_SEED.map(() => '(?, ?, ?, ?, 0)').join(', ');
+        const flatParams = EXERCISE_LIBRARY_SEED.flatMap(ex => [ex.id, ex.name, ex.target_muscle, ex.equipment]);
+        await db.runAsync(
+          `INSERT OR IGNORE INTO exercise_library (id, name, target_muscle, equipment, is_custom) VALUES ${placeholders}`,
+          ...flatParams
+        );
 
+        await db.execAsync(`
           INSERT OR IGNORE INTO routines (id, user_id, routine_name, is_ai_generated, is_active) VALUES
           ('seed-bro-split', 'system', 'Bro Split (Classic)', 0, 1),
           ('seed-ppl', 'system', 'Push Pull Legs', 0, 1);

@@ -15,11 +15,25 @@ export interface WorkoutLog {
   sync_status: 'pending' | 'synced';
 }
 
+export interface SessionExercise {
+  id: string;
+  name: string;
+  target_muscle: string;
+  equipment: string;
+  sets: {
+    weight: string;
+    reps: string;
+    isLogged: boolean;
+  }[];
+}
+
 export interface ActiveSession {
   id: string;
   routine_id: string | null;
   started_at: string;
   logs: WorkoutLog[];
+  exercises: SessionExercise[];
+  selected_day: number;
 }
 
 interface WorkoutState {
@@ -30,6 +44,8 @@ interface WorkoutState {
   removeSet: (exerciseId: string, setNumber: number) => void;
   finishSession: (completedAt: string) => Promise<void>;
   clearQueue: () => void;
+  updateExercises: (exercises: SessionExercise[]) => void;
+  setSelectedDayInSession: (day: number) => void;
 }
 
 export const useWorkoutStore = create<WorkoutState>()(
@@ -43,6 +59,8 @@ export const useWorkoutStore = create<WorkoutState>()(
           routine_id: routineId || null,
           started_at: new Date().toISOString(),
           logs: [],
+          exercises: [],
+          selected_day: 1,
         }
       }),
       logSet: (logData) => set((state) => {
@@ -186,6 +204,24 @@ export const useWorkoutStore = create<WorkoutState>()(
         set({ activeSession: null });
       },
       clearQueue: () => set({ offlineQueue: [] }),
+      updateExercises: (exercises) => set((state) => {
+        if (!state.activeSession) return state;
+        return {
+          activeSession: {
+            ...state.activeSession,
+            exercises,
+          },
+        };
+      }),
+      setSelectedDayInSession: (day) => set((state) => {
+        if (!state.activeSession) return state;
+        return {
+          activeSession: {
+            ...state.activeSession,
+            selected_day: day,
+          },
+        };
+      }),
     }),
     {
       name: 'fitforge-workout-storage',

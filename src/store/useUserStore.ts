@@ -19,6 +19,8 @@ export interface UserProfile {
   daily_carbs_g: number;
   daily_fats_g: number;
   isOnboarded: boolean;
+  hostel?: string;
+  mess?: string;
 }
 
 interface UserState extends UserProfile {
@@ -44,6 +46,8 @@ const initialState: UserProfile = {
   daily_carbs_g: 200,
   daily_fats_g: 65,
   isOnboarded: false,
+  hostel: '1',
+  mess: '1',
 };
 
 export const useUserStore = create<UserState>()(
@@ -74,8 +78,9 @@ export const useUserStore = create<UserState>()(
           await db.runAsync(
             `INSERT OR REPLACE INTO users (
               id, name, age, weight_kg, height_cm, fitness_goal, 
-              daily_calories, daily_protein_g, daily_carbs_g, daily_fats_g
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+              daily_calories, daily_protein_g, daily_carbs_g, daily_fats_g,
+              hostel, mess
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             userId,
             state.name || '',
             state.age,
@@ -85,7 +90,9 @@ export const useUserStore = create<UserState>()(
             state.daily_calories,
             state.daily_protein_g,
             state.daily_carbs_g,
-            state.daily_fats_g
+            state.daily_fats_g,
+            state.hostel || '1',
+            state.mess || '1'
           );
           console.log('[useUserStore] Profile saved to SQLite successfully.');
         } catch (sqliteErr) {
@@ -113,6 +120,8 @@ export const useUserStore = create<UserState>()(
                 daily_protein_g: state.daily_protein_g,
                 daily_carbs_g: state.daily_carbs_g,
                 daily_fats_g: state.daily_fats_g,
+                hostel: state.hostel,
+                mess: state.mess,
               });
 
             if (error) {
@@ -130,7 +139,6 @@ export const useUserStore = create<UserState>()(
       name: 'fitforge-user-storage',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
-        // Persist only user profile and onboarding state, not active session token/loading
         name: state.name,
         age: state.age,
         weight_kg: state.weight_kg,
@@ -141,6 +149,10 @@ export const useUserStore = create<UserState>()(
         daily_carbs_g: state.daily_carbs_g,
         daily_fats_g: state.daily_fats_g,
         isOnboarded: state.isOnboarded,
+        session: state.session,
+        id: state.id,
+        hostel: state.hostel,
+        mess: state.mess,
       }),
     }
   )

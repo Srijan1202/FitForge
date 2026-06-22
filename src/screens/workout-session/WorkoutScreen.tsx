@@ -6,8 +6,9 @@ import { Card, CardTitle, CardSubtitle } from '../../components/ui/Card';
 import { useWorkoutStore, WorkoutLog } from '../../store/useWorkoutStore';
 import { getDb } from '../../db/sqlite';
 import { useNavigation } from '@react-navigation/native';
-import { Play, Square, Plus, Search, Trash2, Clock, RotateCcw, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
+import { Play, Square, Plus, Search, Trash2, Clock, RotateCcw, AlertTriangle, CheckCircle2, Info } from 'lucide-react-native';
 import { Alert, TouchableOpacity } from 'react-native';
+import { EXERCISE_LIBRARY_SEED } from '../../db/exerciseData';
 
 const HUDInput = styled(Input, {
   backgroundColor: '$bgSurface',
@@ -75,9 +76,12 @@ export const WorkoutScreen = () => {
   const [restActive, setRestActive] = useState(false);
   const [restMax, setRestMax] = useState(90);
 
-  // Exercises State
-  const [sessionExercises, setSessionExercises] = useState<SessionExercise[]>([]);
-  const [selectedDay, setSelectedDay] = useState(1);
+  // Exercises State (bound to Zustand store for persistence)
+  const sessionExercises = useWorkoutStore((state) => state.activeSession?.exercises || []);
+  const updateExercises = useWorkoutStore((state) => state.updateExercises);
+  const selectedDay = useWorkoutStore((state) => state.activeSession?.selected_day || 1);
+  const setSelectedDay = useWorkoutStore((state) => state.setSelectedDayInSession);
+
   const [routineDays, setRoutineDays] = useState<number[]>([]);
   const [routineName, setRoutineName] = useState('FREESTYLE SESSION');
 
@@ -87,6 +91,8 @@ export const WorkoutScreen = () => {
   const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseLibItem[]>([]);
   const [customExerciseName, setCustomExerciseName] = useState('');
   const [customExerciseMuscle, setCustomExerciseMuscle] = useState('Chest');
+  const [selectedDetailExercise, setSelectedDetailExercise] = useState<any | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   // Elapsed Session Ticker
   useEffect(() => {
@@ -135,7 +141,6 @@ export const WorkoutScreen = () => {
       if (!activeSession.routine_id) {
         setRoutineName('FREESTYLE WORKOUT');
         setRoutineDays([]);
-        setSessionExercises([]);
         return;
       }
 
@@ -178,33 +183,36 @@ export const WorkoutScreen = () => {
           setSelectedDay(days[0]);
         }
 
-        // Filter exercises for selected day
-        const dayRows = rows.filter(r => r.day_of_week === targetDay);
+        // Only overwrite exercises from SQLite if activeSession.exercises is empty OR selected_day has changed
+        if (!activeSession.exercises || activeSession.exercises.length === 0 || activeSession.selected_day !== targetDay) {
+          // Filter exercises for selected day
+          const dayRows = rows.filter(r => r.day_of_week === targetDay);
 
-        const mapped = dayRows.map(r => {
-          // Retrieve previously completed log sets in the active session if they exist
-          const exLogs = activeSession.logs.filter(l => l.exercise_id === r.exercise_id);
-          
-          const sets = Array.from({ length: r.target_sets }).map((_, idx) => {
-            const setNo = idx + 1;
-            const log = exLogs.find(l => l.set_number === setNo);
+          const mapped = dayRows.map(r => {
+            const exLogs = activeSession.logs.filter(l => l.exercise_id === r.exercise_id);
+            
+            const sets = Array.from({ length: r.target_sets }).map((_, idx) => {
+              const setNo = idx + 1;
+              const log = exLogs.find(l => l.set_number === setNo);
+              return {
+                weight: log ? log.weight_lifted.toString() : '',
+                reps: log ? log.reps.toString() : '',
+                isLogged: !!log,
+              };
+            });
+
             return {
-              weight: log ? log.weight_lifted.toString() : '',
-              reps: log ? log.reps.toString() : '',
-              isLogged: !!log,
+              id: r.exercise_id,
+              name: r.exercise_name,
+              target_muscle: r.target_muscle,
+              equipment: r.equipment,
+              sets,
             };
           });
 
-          return {
-            id: r.exercise_id,
-            name: r.exercise_name,
-            target_muscle: r.target_muscle,
-            equipment: r.equipment,
-            sets,
-          };
-        });
-
-        setSessionExercises(mapped);
+          updateExercises(mapped);
+          setSelectedDay(targetDay);
+        }
       } catch (err) {
         console.error('[WorkoutScreen] Failed to load routine exercises:', err);
       }
@@ -231,6 +239,33 @@ export const WorkoutScreen = () => {
     }
   }, [isAddModalOpen]);
 
+  const handleOpenDetail = (ex: any) => {
+    const match = EXERCISE_LIBRARY_SEED.find(
+      (item) => item.id === ex.id || item.name.toLowerCase() === ex.name.toLowerCase()
+    );
+    
+    if (match) {
+      setSelectedDetailExercise(match);
+    } else {
+      setSelectedDetailExercise({
+        id: ex.id,
+        name: ex.name,
+        target_muscle: ex.target_muscle,
+        equipment: ex.equipment,
+        instructions: [
+          'Custom user-created movement log.',
+          'Formulate and follow proper form guidelines.',
+          'Focus on full range of motion, clean execution, and breathing mechanics.'
+        ],
+        tips: [
+          'Keep your joints aligned and stabilize your core.',
+          'Lower weights slowly (2-3 seconds eccentric phase).'
+        ]
+      });
+    }
+    setIsDetailModalOpen(true);
+  };
+
   // Log Set Toggle
   const handleToggleSet = (exId: string, setIdx: number) => {
     const ex = sessionExercises.find((e) => e.id === exId);
@@ -242,14 +277,15 @@ export const WorkoutScreen = () => {
     if (setObj.isLogged) {
       // Unlog set
       removeSet(exId, setNo);
-      setSessionExercises(prev => prev.map(e => {
+      const updated = sessionExercises.map(e => {
         if (e.id === exId) {
           const newSets = [...e.sets];
           newSets[setIdx] = { ...newSets[setIdx], isLogged: false };
           return { ...e, sets: newSets };
         }
         return e;
-      }));
+      });
+      updateExercises(updated);
     } else {
       // Log set (validate input values)
       const w = parseFloat(setObj.weight);
@@ -267,14 +303,15 @@ export const WorkoutScreen = () => {
         reps: r,
       });
 
-      setSessionExercises(prev => prev.map(e => {
+      const updated = sessionExercises.map(e => {
         if (e.id === exId) {
           const newSets = [...e.sets];
           newSets[setIdx] = { ...newSets[setIdx], isLogged: true };
           return { ...e, sets: newSets };
         }
         return e;
-      }));
+      });
+      updateExercises(updated);
 
       // Trigger Rest timer countdown
       setRestSeconds(restMax);
@@ -282,21 +319,22 @@ export const WorkoutScreen = () => {
     }
   };
 
-  // Mutate set input values locally
+  // Mutate set input values locally and persist
   const handleChangeSetInput = (exId: string, setIdx: number, field: 'weight' | 'reps', val: string) => {
-    setSessionExercises(prev => prev.map(e => {
+    const updated = sessionExercises.map(e => {
       if (e.id === exId) {
         const newSets = [...e.sets];
         newSets[setIdx] = { ...newSets[setIdx], [field]: val };
         return { ...e, sets: newSets };
       }
       return e;
-    }));
+    });
+    updateExercises(updated);
   };
 
   // Add dynamic set row
   const handleAddSet = (exId: string) => {
-    setSessionExercises(prev => prev.map(e => {
+    const updated = sessionExercises.map(e => {
       if (e.id === exId) {
         return {
           ...e,
@@ -304,12 +342,13 @@ export const WorkoutScreen = () => {
         };
       }
       return e;
-    }));
+    });
+    updateExercises(updated);
   };
 
   // Delete last set row
   const handleRemoveSet = (exId: string) => {
-    setSessionExercises(prev => prev.map(e => {
+    const updated = sessionExercises.map(e => {
       if (e.id === exId && e.sets.length > 1) {
         const lastIdx = e.sets.length - 1;
         if (e.sets[lastIdx].isLogged) {
@@ -321,7 +360,8 @@ export const WorkoutScreen = () => {
         };
       }
       return e;
-    }));
+    });
+    updateExercises(updated);
   };
 
   // Append exercise manually from Library Popover
@@ -332,8 +372,8 @@ export const WorkoutScreen = () => {
       return;
     }
 
-    setSessionExercises(prev => [
-      ...prev,
+    const updated = [
+      ...sessionExercises,
       {
         id: item.id,
         name: item.name,
@@ -345,7 +385,8 @@ export const WorkoutScreen = () => {
           { weight: '', reps: '', isLogged: false },
         ],
       },
-    ]);
+    ];
+    updateExercises(updated);
     setIsAddModalOpen(false);
     setSearchQuery('');
   };
@@ -499,18 +540,26 @@ export const WorkoutScreen = () => {
                   br="$2" 
                   borderWidth={1} 
                   borderColor="$borderHairline"
-                  pressStyle={{ borderColor: '$accentPrimary' }}
-                  onPress={() => handleAddExerciseFromLibrary(item)}
                 >
-                  <YStack>
-                    <Text color="$textPrimary" fontFamily="$body" fontSize="$2" fontWeight="bold">
-                      {item.name}
-                    </Text>
-                    <Text color="$textSecondary" fontSize="$1" fontFamily="$body">
-                      {item.target_muscle.toUpperCase()} • {item.equipment.toUpperCase()}
-                    </Text>
-                  </YStack>
-                  <Plus size={16} color={theme.accentPrimary.get() as string} />
+                  <TouchableOpacity onPress={() => handleOpenDetail(item)} style={{ flex: 1 }}>
+                    <YStack>
+                      <XStack ai="center" gap="$1.5">
+                        <Text color="$textPrimary" fontFamily="$body" fontSize="$2" fontWeight="bold">
+                          {item.name}
+                        </Text>
+                        <Info size={12} color={theme.accentPrimary.get() as string} />
+                      </XStack>
+                      <Text color="$textSecondary" fontSize="$1" fontFamily="$body">
+                        {item.target_muscle.toUpperCase()} • {item.equipment.toUpperCase()}
+                      </Text>
+                    </YStack>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={() => handleAddExerciseFromLibrary(item)}>
+                    <View bg="$bgBase" p="$2" br="$1" borderWidth={1} borderColor="$accentDim" pressStyle={{ borderColor: '$accentPrimary' }}>
+                      <Plus size={16} color={theme.accentPrimary.get() as string} />
+                    </View>
+                  </TouchableOpacity>
                 </XStack>
               ))}
 
@@ -541,6 +590,80 @@ export const WorkoutScreen = () => {
                 </YStack>
               )}
             </ScrollView>
+          </YStack>
+        </View>
+      )}
+
+      {/* Movement Detail Modal */}
+      {isDetailModalOpen && selectedDetailExercise && (
+        <View position="absolute" top={0} left={0} right={0} bottom={0} bg="rgba(10,14,12,0.92)" zi={200} p="$4" jc="center">
+          <YStack bg="$bgSurface" br="$3" p="$4" borderWidth={1} borderColor="$accentPrimary" maxH="85%" gap="$4" shadowColor="$accentGlow" shadowRadius={20} shadowOpacity={0.15}>
+            
+            <XStack jc="space-between" ai="center" borderBottomWidth={1} borderBottomColor="$borderHairline" pb="$3">
+              <YStack flex={1}>
+                <Text color="$accentPrimary" fontFamily="$heading" fontSize="$4" fontWeight="bold">
+                  {selectedDetailExercise.name.toUpperCase()}
+                </Text>
+                <Text color="$textSecondary" fontSize="$1" fontFamily="$mono">
+                  TARGET: {selectedDetailExercise.target_muscle.toUpperCase()} • EQUIP: {selectedDetailExercise.equipment.toUpperCase()}
+                </Text>
+              </YStack>
+              <TouchableOpacity onPress={() => setIsDetailModalOpen(false)}>
+                <View bg="$bgSurfaceRaised" py="$1.5" px="$3" br="$1" borderWidth={1} borderColor="$borderHairline">
+                  <Text color="$stateError" fontFamily="$mono" fontSize="$1" fontWeight="bold">CLOSE</Text>
+                </View>
+              </TouchableOpacity>
+            </XStack>
+
+            <ScrollView flex={1} contentContainerStyle={{ gap: 16 }}>
+              {/* Form Guide Section */}
+              <YStack gap="$2">
+                <Text color="$textPrimary" fontFamily="$heading" fontSize="$2" fontWeight="bold">FORM EXECUTION GUIDE</Text>
+                <YStack gap="$2">
+                  {selectedDetailExercise.instructions.map((step: string, idx: number) => (
+                    <XStack key={idx} gap="$2.5" ai="flex-start">
+                      <View w={20} h={20} br={99} bg="$bgSurfaceRaised" borderWidth={1} borderColor="$accentDim" ai="center" jc="center">
+                        <Text color="$accentPrimary" fontSize="$1" fontFamily="$mono" fontWeight="bold">{idx + 1}</Text>
+                      </View>
+                      <Text color="$textPrimary" fontSize="$2" fontFamily="$body" flex={1} lineHeight={18}>
+                        {step}
+                      </Text>
+                    </XStack>
+                  ))}
+                </YStack>
+              </YStack>
+
+              {/* Safety & Performance Tips */}
+              <YStack gap="$2" pt="$2">
+                <Text color="$stateWarning" fontFamily="$heading" fontSize="$2" fontWeight="bold">PRO TIPS & SAFETY DIRECTIVES</Text>
+                <YStack gap="$1.5">
+                  {selectedDetailExercise.tips.map((tip: string, idx: number) => (
+                    <XStack key={idx} gap="$2" ai="flex-start">
+                      <Text color="$stateWarning" fontSize="$2" fontFamily="$mono">•</Text>
+                      <Text color="$textSecondary" fontSize="$2" fontFamily="$body" flex={1} lineHeight={16}>
+                        {tip}
+                      </Text>
+                    </XStack>
+                  ))}
+                </YStack>
+              </YStack>
+            </ScrollView>
+
+            {/* Quick Add Action Button inside Details Modal if opened from Search Modal */}
+            {isAddModalOpen && (
+              <Button 
+                title="ADD MOVEMENT TO LOG" 
+                onPress={() => {
+                  handleAddExerciseFromLibrary({
+                    id: selectedDetailExercise.id,
+                    name: selectedDetailExercise.name,
+                    target_muscle: selectedDetailExercise.target_muscle,
+                    equipment: selectedDetailExercise.equipment
+                  });
+                  setIsDetailModalOpen(false);
+                }}
+              />
+            )}
           </YStack>
         </View>
       )}
@@ -601,12 +724,17 @@ export const WorkoutScreen = () => {
           {sessionExercises.map((ex) => (
             <Card key={ex.id} p="$3" br="$3" bg="$bgSurface" borderWidth={1} borderColor="$borderHairline">
               <XStack jc="space-between" ai="center" mb="$3">
-                <YStack>
-                  <Text color="$textPrimary" fontFamily="$heading" fontSize="$3">{ex.name}</Text>
-                  <Text color="$textSecondary" fontSize="$1" fontFamily="$body">
-                    {ex.target_muscle.toUpperCase()} • {ex.equipment.toUpperCase()}
-                  </Text>
-                </YStack>
+                <TouchableOpacity onPress={() => handleOpenDetail(ex)} style={{ flex: 1 }}>
+                  <YStack>
+                    <XStack ai="center" gap="$1.5">
+                      <Text color="$textPrimary" fontFamily="$heading" fontSize="$3">{ex.name}</Text>
+                      <Info size={12} color={theme.accentPrimary.get() as string} />
+                    </XStack>
+                    <Text color="$textSecondary" fontSize="$1" fontFamily="$body">
+                      {ex.target_muscle.toUpperCase()} • {ex.equipment.toUpperCase()}
+                    </Text>
+                  </YStack>
+                </TouchableOpacity>
 
                 <XStack gap="$1.5">
                   <TouchableOpacity onPress={() => handleRemoveSet(ex.id)}>

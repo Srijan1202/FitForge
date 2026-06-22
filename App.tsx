@@ -26,21 +26,31 @@ export default function App() {
       .then(() => console.log('SQLite database initialized.'))
       .catch((err) => console.error('Failed to initialize SQLite database:', err));
 
-    // 2. Load initial auth session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    const isKeysConfigured =
+      !!process.env.EXPO_PUBLIC_SUPABASE_URL &&
+      !!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY &&
+      !process.env.EXPO_PUBLIC_SUPABASE_URL.includes('placeholder');
 
-    // 3. Track auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setLoading(false);
-    });
+    if (isKeysConfigured) {
+      // 2. Load initial auth session
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setSession(session);
+        setLoading(false);
+      });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+      // 3. Track auth changes
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        setSession(session);
+        setLoading(false);
+      });
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    } else {
+      // Offline/Demo Mode: Keep session from Zustand storage and clear loading state
+      setLoading(false);
+    }
   }, [setSession, setLoading]);
 
   if (!loaded || loading) {
